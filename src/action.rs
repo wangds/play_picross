@@ -3,6 +3,7 @@
 use board::Board;
 
 pub enum PicrossAction {
+    NoOp,
     Quit,
     Undo,
     Redo,
