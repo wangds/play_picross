@@ -7,9 +7,10 @@ pub enum Tile {
     CrossedOut
 }
 
+#[derive(Clone)]
 pub struct Board {
-    width: usize,
-    height: usize,
+    pub width: usize,
+    pub height: usize,
     tiles: Vec<Tile>
 }
 
