@@ -5,3 +5,6 @@ authors = ["David Wang <millimillenary@gmail.com>"]
 
 [dependencies]
 sdl2 = "*"
+
+[dependencies.sdl2_image]
+git = "https://github.com/xsleonard/rust-sdl2_image"

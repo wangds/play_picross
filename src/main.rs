@@ -1,9 +1,11 @@
 // main.rs
 
 extern crate sdl2;
+extern crate sdl2_image;
 
 mod action;
 mod board;
+mod gfx;
 mod gui;
 mod puzzle;
 
