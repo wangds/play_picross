@@ -19,6 +19,13 @@ const DEFAULT_SCREEN_HEIGHT: u32 = 200;
 const TILE_WIDTH: u32 = 15;
 const TILE_HEIGHT: u32 = 15;
 
+#[derive(Clone,Copy,Eq,PartialEq)]
+enum GuiMode {
+    Neutral,
+    HoldLMB,
+    HoldRMB,
+}
+
 pub struct Gui<'a> {
     renderer: Renderer<'a>,
     timer: TimerSubsystem,
@@ -30,7 +37,10 @@ pub struct Gui<'a> {
 }
 
 struct GuiState {
-    selected_paint: Tile
+    mode: GuiMode,
+    selected_paint: Tile,
+    board: Option<Board>,
+    new_changes: bool
 }
 
 impl<'a> Gui<'a> {
@@ -74,11 +84,20 @@ impl<'a> Gui<'a> {
                 Event::KeyDown { keycode: Some(k), .. } =>
                     return self.state.on_key_down(k),
 
+                Event::MouseMotion { x, y, .. } =>
+                    return self.state.on_mouse_motion(x, y),
+
                 Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } =>
                     return self.state.on_lmb(board, x, y),
 
                 Event::MouseButtonDown { mouse_btn: Mouse::Right, x, y, .. } =>
                     return self.state.on_rmb(board, x, y),
+
+                Event::MouseButtonUp { mouse_btn: Mouse::Left, .. } =>
+                    return self.state.on_lmb_up(),
+
+                Event::MouseButtonUp { mouse_btn: Mouse::Right, .. } =>
+                    return self.state.on_rmb_up(),
 
                 _ => {}
             }
@@ -96,7 +115,11 @@ impl<'a> Gui<'a> {
         self.renderer.set_draw_color(colour_white);
         self.renderer.clear();
 
-        Gui::draw_board(&mut self.renderer, board);
+        if let Some(ref b) = self.state.board {
+            Gui::draw_board(&mut self.renderer, b);
+        } else {
+            Gui::draw_board(&mut self.renderer, board);
+        }
 
         self.renderer.present();
         self.redraw = false;
@@ -126,11 +149,18 @@ impl<'a> Gui<'a> {
 impl GuiState {
     fn new() -> GuiState {
         GuiState {
-            selected_paint: Tile::Filled
+            mode: GuiMode::Neutral,
+            selected_paint: Tile::Filled,
+            board: None,
+            new_changes: false
         }
     }
 
     fn on_key_down(&mut self, keycode: Keycode) -> PicrossAction {
+        if self.mode != GuiMode::Neutral {
+            return PicrossAction::NoOp
+        }
+
         match keycode {
             Keycode::Z => return PicrossAction::Undo,
             Keycode::X => return PicrossAction::Redo,
@@ -144,24 +174,101 @@ impl GuiState {
         PicrossAction::NoOp
     }
 
-    fn on_lmb(&self, board: &Board, mx: i32, my: i32) -> PicrossAction {
-        if let Some((x,y)) = convert_mouse_coord_to_tile_coord(board, mx, my) {
-            let mut b = board.clone();
-            b.set(x, y, self.selected_paint);
-            PicrossAction::Update(b)
+    fn on_mouse_motion(&mut self, mx: i32, my: i32) -> PicrossAction {
+        if self.mode == GuiMode::HoldLMB {
+            // lmb will only draw on empty tiles.
+            if let Some(ref mut b) = self.board {
+                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(b, mx, my) {
+                    let old_tile = b.get(tx, ty).unwrap();
+                    let new_tile = self.selected_paint;
+
+                    if (old_tile == Tile::Empty && new_tile != Tile::Empty)
+                        || (old_tile != Tile::Empty && new_tile == Tile::Empty) {
+                        b.set(tx, ty, new_tile);
+                        self.new_changes = true;
+                    }
+                }
+            }
+        } else if self.mode == GuiMode::HoldRMB {
+            // rmb will clear any tile.
+            if let Some(ref mut b) = self.board {
+                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(b, mx, my) {
+                    let old_tile = b.get(tx, ty).unwrap();
+                    let new_tile = Tile::Empty;
+
+                    if old_tile != Tile::Empty {
+                        b.set(tx, ty, new_tile);
+                        self.new_changes = true;
+                    }
+                }
+            }
+        }
+
+        PicrossAction::NoOp
+    }
+
+    fn on_lmb(&mut self, board: &Board, mx: i32, my: i32) -> PicrossAction {
+        if self.mode != GuiMode::Neutral {
+            return PicrossAction::NoOp
+        }
+
+        self.mode = GuiMode::HoldLMB;
+
+        if self.board.is_none() {
+            self.board = Some(board.clone());
+            self.new_changes = false;
+            self.on_mouse_motion(mx, my)
         } else {
             PicrossAction::NoOp
         }
     }
 
-    fn on_rmb(&self, board: &Board, mx: i32, my: i32) -> PicrossAction {
-        if let Some((x,y)) = convert_mouse_coord_to_tile_coord(board, mx, my) {
-            let mut b = board.clone();
-            b.set(x, y, Tile::Empty);
-            PicrossAction::Update(b)
+    fn on_lmb_up(&mut self) -> PicrossAction {
+        if self.mode != GuiMode::HoldLMB {
+            return PicrossAction::NoOp
+        }
+
+        self.mode = GuiMode::Neutral;
+
+        if self.board.is_some() && self.new_changes {
+            return PicrossAction::Update(self.board.take().unwrap())
+        } else {
+            self.board = None;
+        }
+
+        PicrossAction::NoOp
+    }
+
+    fn on_rmb(&mut self, board: &Board, mx: i32, my: i32) -> PicrossAction {
+        if self.mode != GuiMode::Neutral {
+            return PicrossAction::NoOp
+        }
+
+        self.mode = GuiMode::HoldRMB;
+
+        if self.board.is_none() {
+            self.board = Some(board.clone());
+            self.new_changes = false;
+            self.on_mouse_motion(mx, my)
         } else {
             PicrossAction::NoOp
         }
+    }
+
+    fn on_rmb_up(&mut self) -> PicrossAction {
+        if self.mode != GuiMode::HoldRMB {
+            return PicrossAction::NoOp
+        }
+
+        self.mode = GuiMode::Neutral;
+
+        if self.board.is_some() && self.new_changes {
+            return PicrossAction::Update(self.board.take().unwrap())
+        } else {
+            self.board = None;
+        }
+
+        PicrossAction::NoOp
     }
 }
 

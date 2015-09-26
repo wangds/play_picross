@@ -1,6 +1,6 @@
 // board.rs
 
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone,Copy,Eq,PartialEq)]
 pub enum Tile {
     Empty,
     Filled,
