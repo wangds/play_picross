@@ -50,7 +50,10 @@ struct GuiState {
     mode: GuiMode,
     selected_paint: Tile,
     board: Option<Board>,
-    new_changes: bool
+    new_changes: bool,
+
+    offset_x: i32,
+    offset_y: i32
 }
 
 struct Widget {
@@ -75,15 +78,32 @@ impl<'a> Gui<'a> {
         let timer = sdl.timer().unwrap();
         let event_pump = sdl.event_pump().unwrap();
 
+        let (offset_x, offset_y) = Gui::calc_initial_offset(
+                DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 10, 10);
+
         Gui {
             gfx: GfxLib::new(renderer),
             timer: timer,
             event_pump: event_pump,
-            state: GuiState::new(),
+            state: GuiState::new(offset_x, offset_y),
             widgets: Gui::make_widgets(),
             redraw: true,
             last_redraw: 0
         }
+    }
+
+    fn calc_initial_offset(screen_w: u32, screen_h: u32, width: u32, height: u32)
+            -> (i32, i32) {
+        let toolbar_height = TOOLBAR_BUTTON_HEIGHT + 6;
+        let x_spacing = TILE_WIDTH + 2;
+        let y_spacing = TILE_HEIGHT + 2;
+        let pivot_x = (x_spacing * width - 2) / 2;
+        let pivot_y = (y_spacing * height - 2) / 2;
+        let centre_x = (screen_w as i32) / 2 - (pivot_x as i32);
+        let centre_y = ((screen_h - toolbar_height) as i32) / 2
+                        - (pivot_y as i32);
+
+        (centre_x, centre_y)
     }
 
     fn make_widgets() -> Vec<Widget> {
@@ -210,10 +230,36 @@ impl<'a> Gui<'a> {
         self.gfx.renderer.clear();
 
         // board
+        self.gfx.renderer.set_draw_color(colour_light_grey);
+        for y in 0..(board.height + 1) as u32 {
+            Gui::draw_board_line(&mut self.gfx, &self.state,
+                    0, y, board.width as u32, y);
+        }
+
+        for x in 0..(board.width + 1) as u32 {
+            Gui::draw_board_line(&mut self.gfx, &self.state,
+                    x, 0, x, board.height as u32);
+        }
+
+        self.gfx.renderer.set_draw_color(colour_dark_grey);
+        for y in 0..(board.height + 1) as u32 {
+            if y % 5 == 0 || y == board.height as u32 {
+                Gui::draw_board_line(&mut self.gfx, &self.state,
+                        0, y, board.width as u32, y);
+            }
+        }
+
+        for x in 0..(board.width + 1) as u32 {
+            if x % 5 == 0 || x == board.width as u32 {
+                Gui::draw_board_line(&mut self.gfx, &self.state,
+                        x, 0, x, board.height as u32);
+            }
+        }
+
         if let Some(ref b) = self.state.board {
-            Gui::draw_board(&mut self.gfx, b);
+            Gui::draw_board(&mut self.gfx, &self.state, b);
         } else {
-            Gui::draw_board(&mut self.gfx, board);
+            Gui::draw_board(&mut self.gfx, &self.state, board);
         }
 
         // toolbar
@@ -233,23 +279,46 @@ impl<'a> Gui<'a> {
         self.last_redraw = self.timer.ticks();
     }
 
-    fn draw_board(gfx: &mut GfxLib<'a>, board: &Board) {
-        let colour_dark_grey = Color::RGB(0x58, 0x58, 0x58);
+    fn draw_board(gfx: &mut GfxLib<'a>, state: &GuiState, board: &Board) {
         let x_spacing = TILE_WIDTH + 2;
         let y_spacing = TILE_HEIGHT + 2;
-        gfx.renderer.set_draw_color(colour_dark_grey);
 
         for y in 0..(board.height as u32) {
             for x in 0..(board.width as u32) {
-                if let Some(Tile::Filled) = board.get(x, y) {
-                    let x0 = (x_spacing * x) as i32;
-                    let y0 = (y_spacing * y) as i32;
-                    let rect = Rect::new_unwrap(x0, y0, TILE_WIDTH, TILE_HEIGHT);
-
-                    gfx.renderer.fill_rect(rect);
+                let maybe_t = board.get(x, y);
+                if maybe_t.is_none() {
+                    continue;
                 }
+
+                let res = match maybe_t.unwrap() {
+                    Tile::Empty => Res::TileEmpty,
+                    Tile::Filled => Res::TileFilled,
+                    Tile::CrossedOut => Res::TileCrossedOut
+                };
+
+                let x0 = state.offset_x + (x_spacing * x) as i32;
+                let y0 = state.offset_y + (y_spacing * y) as i32;
+                let rect = Rect::new_unwrap(x0, y0, TILE_WIDTH, TILE_HEIGHT);
+
+                gfx.draw(res, rect);
             }
         }
+    }
+
+    fn draw_board_line(gfx: &mut GfxLib, state: &GuiState,
+            x1: u32, y1: u32, x2: u32, y2: u32) {
+        let board_x = state.offset_x as i32;
+        let board_y = state.offset_y as i32;
+        let board_x_spacing = TILE_WIDTH + 2;
+        let board_y_spacing = TILE_HEIGHT + 2;
+
+        let line = Rect::new_unwrap(
+                board_x - 2 + (board_x_spacing * x1) as i32,
+                board_y - 2 + (board_y_spacing * y1) as i32,
+                2 + board_x_spacing * (x2 - x1) as u32,
+                2 + board_y_spacing * (y2 - y1) as u32);
+
+        gfx.renderer.fill_rect(line);
     }
 
     fn draw_widget(gfx: &mut GfxLib, state: &GuiState, widget: &Widget) {
@@ -271,12 +340,14 @@ impl<'a> Gui<'a> {
 }
 
 impl GuiState {
-    fn new() -> GuiState {
+    fn new(offset_x: i32, offset_y: i32) -> GuiState {
         GuiState {
             mode: GuiMode::Neutral,
             selected_paint: Tile::Filled,
             board: None,
-            new_changes: false
+            new_changes: false,
+            offset_x: offset_x,
+            offset_y: offset_y
         }
     }
 
@@ -302,7 +373,8 @@ impl GuiState {
         if self.mode == GuiMode::HoldLMB {
             // lmb will only draw on empty tiles.
             if let Some(ref mut b) = self.board {
-                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(b, mx, my) {
+                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
+                        b, mx - self.offset_x, my - self.offset_y) {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = self.selected_paint;
 
@@ -316,7 +388,8 @@ impl GuiState {
         } else if self.mode == GuiMode::HoldRMB {
             // rmb will clear any tile.
             if let Some(ref mut b) = self.board {
-                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(b, mx, my) {
+                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
+                        b, mx - self.offset_x, my - self.offset_y) {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = Tile::Empty;
 
