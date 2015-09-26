@@ -5,6 +5,7 @@ use sdl2;
 use sdl2::EventPump;
 use sdl2::TimerSubsystem;
 use sdl2::event::Event;
+use sdl2::event::WindowEventId;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::Mouse;
 use sdl2::pixels::Color;
@@ -17,8 +18,21 @@ use board::Board;
 use board::Tile;
 use gfx::*;
 
-const DEFAULT_SCREEN_WIDTH: u32 = 320;
-const DEFAULT_SCREEN_HEIGHT: u32 = 200;
+const MIN_TOOLBAR_WIDTH: u32
+    = 3
+    + TOOLBAR_UNDO_REDO_WIDTH + 2 // undo
+    + TOOLBAR_UNDO_REDO_WIDTH + 2 // redo
+    + TOOLBAR_PAINT_WIDTH + 2 // palette
+    + (TOOLBAR_PAINT_WIDTH - 1) * 2 + 1 // palette
+    + 3;
+
+const DEFAULT_SCREEN_WIDTH: u32 = 640;
+const DEFAULT_SCREEN_HEIGHT: u32 = 400;
+const MIN_SCREEN_WIDTH: u32 = MIN_TOOLBAR_WIDTH;
+const MIN_SCREEN_HEIGHT: u32 = 128;
+
+// (w, h, toolbar_scale)
+type ScreenSize = (u32,u32,u32);
 
 #[derive(Clone,Copy,Eq,PartialEq)]
 enum GuiMode {
@@ -45,7 +59,10 @@ pub struct Gui<'a> {
     widgets: Vec<Widget>,
 
     redraw: bool,
-    last_redraw: u32
+    last_redraw: u32,
+
+    // Some(new screen size) if need to relayout the widgets
+    resize: Option<(u32,u32)>
 }
 
 struct GuiState {
@@ -54,6 +71,7 @@ struct GuiState {
     board: Option<Board>,
     new_changes: bool,
 
+    screen_size: ScreenSize,
     offset_x: i32,
     offset_y: i32,
     last_mouse_x: i32,
@@ -72,67 +90,70 @@ impl<'a> Gui<'a> {
 
         sdl2_image::init(INIT_PNG);
 
-        let window
+        let state = GuiState::new(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT);
+        let screen_size = state.screen_size;
+
+        let mut window
             = video.window("Picross", DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT)
+            .resizable()
             .position_centered()
             .opengl()
             .build().unwrap();
+
+        window.set_minimum_size(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
 
         let renderer = window.renderer().build().unwrap();
         let timer = sdl.timer().unwrap();
         let event_pump = sdl.event_pump().unwrap();
 
-        let (offset_x, offset_y) = Gui::calc_initial_offset(
-                DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 10, 10);
-
         Gui {
             gfx: GfxLib::new(renderer),
             timer: timer,
             event_pump: event_pump,
-            state: GuiState::new(offset_x, offset_y),
-            widgets: Gui::make_widgets(),
+            state: state,
+            widgets: Gui::make_widgets(screen_size),
             redraw: true,
-            last_redraw: 0
+            last_redraw: 0,
+            resize: None
         }
     }
 
-    fn calc_initial_offset(screen_w: u32, screen_h: u32, width: u32, height: u32)
-            -> (i32, i32) {
-        let toolbar_height = TOOLBAR_BUTTON_HEIGHT + 6;
-        let x_spacing = TILE_WIDTH + 2;
-        let y_spacing = TILE_HEIGHT + 2;
-        let pivot_x = (x_spacing * width - 2) / 2;
-        let pivot_y = (y_spacing * height - 2) / 2;
-        let centre_x = (screen_w as i32) / 2 - (pivot_x as i32);
-        let centre_y = ((screen_h - toolbar_height) as i32) / 2
-                        - (pivot_y as i32);
-
-        (centre_x, centre_y)
+    fn is_picross_label_visible(screen_size: ScreenSize) -> bool {
+        let (screen_w, _, toolbar_scale) = screen_size;
+        let toolbar_w = MIN_TOOLBAR_WIDTH + TOOLBAR_BUTTON_WIDTH + 3; // picross
+        screen_w >= toolbar_scale * toolbar_w
     }
 
-    fn make_widgets() -> Vec<Widget> {
+    fn make_widgets(screen_size: ScreenSize) -> Vec<Widget> {
         let mut ws = Vec::new();
-        let screen_w = DEFAULT_SCREEN_WIDTH;
-        let screen_h = DEFAULT_SCREEN_HEIGHT;
-        let toolbar_scale: u32 = 1;
+        let (screen_w, screen_h, toolbar_scale) = screen_size;
         let y = (screen_h - toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 3)) as i32;
 
         let paint_spacing = TOOLBAR_PAINT_WIDTH - 1;
-        let palette_width = TOOLBAR_PAINT_WIDTH + 2 + paint_spacing * 2 + 1;
+        let palette_width = toolbar_scale * (TOOLBAR_PAINT_WIDTH + 2 + paint_spacing * 2 + 1);
 
-        let x_undo = (toolbar_scale * (3 + TOOLBAR_BUTTON_WIDTH + 3)) as i32;
+        let label_visible = Gui::is_picross_label_visible(screen_size);
+        let x_undo =
+            if label_visible {
+                (toolbar_scale * (3 + TOOLBAR_BUTTON_WIDTH + 3)) as i32
+            } else {
+                (toolbar_scale * 3) as i32
+            };
         let x_redo = x_undo + (toolbar_scale * (TOOLBAR_UNDO_REDO_WIDTH + 2)) as i32;
-        let x_palette = (screen_w - palette_width) as i32 / 2;
+        let x_palette = max(x_redo + (toolbar_scale * (TOOLBAR_UNDO_REDO_WIDTH + 2)) as i32,
+                            (screen_w - palette_width) as i32 / 2);
 
         // label
-        ws.push(Widget {
-                mode: WidgetType::Label,
-                rect: Rect::new_unwrap(
-                        (toolbar_scale * 3) as i32,
-                        y,
-                        toolbar_scale * TOOLBAR_BUTTON_WIDTH,
-                        toolbar_scale * TOOLBAR_BUTTON_HEIGHT)
-                });
+        if label_visible {
+            ws.push(Widget {
+                    mode: WidgetType::Label,
+                    rect: Rect::new_unwrap(
+                            (toolbar_scale * 3) as i32,
+                            y,
+                            toolbar_scale * TOOLBAR_BUTTON_WIDTH,
+                            toolbar_scale * TOOLBAR_BUTTON_HEIGHT)
+                    });
+        }
 
         // undo
         ws.push(Widget {
@@ -160,14 +181,18 @@ impl<'a> Gui<'a> {
 
         ws.push(Widget {
                 mode: WidgetType::Paint(Tile::CrossedOut, Res::ToolbarActiveCrossedOut, Res::ToolbarInactiveCrossedOut),
-                rect: Rect::new_unwrap(x_palette + (TOOLBAR_PAINT_WIDTH + 2) as i32, y,
+                rect: Rect::new_unwrap(
+                        x_palette + (toolbar_scale * (TOOLBAR_PAINT_WIDTH + 2)) as i32,
+                        y,
                         toolbar_scale * TOOLBAR_PAINT_WIDTH,
                         toolbar_scale * TOOLBAR_BUTTON_HEIGHT),
                 });
 
         ws.push(Widget {
                 mode: WidgetType::Paint(Tile::Filled, Res::ToolbarActiveFilled, Res::ToolbarInactiveFilled),
-                rect: Rect::new_unwrap(x_palette + (TOOLBAR_PAINT_WIDTH + 2 + paint_spacing * 1) as i32, y,
+                rect: Rect::new_unwrap(
+                        x_palette + (toolbar_scale * (TOOLBAR_PAINT_WIDTH + 2 + paint_spacing * 1)) as i32,
+                        y,
                         toolbar_scale * TOOLBAR_PAINT_WIDTH,
                         toolbar_scale * TOOLBAR_BUTTON_HEIGHT),
                 });
@@ -182,13 +207,17 @@ impl<'a> Gui<'a> {
             return PicrossAction::NoOp;
         }
 
-        let toolbar_y = (DEFAULT_SCREEN_HEIGHT - TOOLBAR_BUTTON_HEIGHT - 6) as i32;
+        let (_, screen_h, toolbar_scale) = self.state.screen_size;
+        let toolbar_y = (screen_h - toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6)) as i32;
 
         let timeout = self.last_redraw + 1000 / 60 - curr_ticks;
         if let Some(e) = self.event_pump.wait_event_timeout(timeout) {
             match e {
                 Event::Quit {..} =>
                     return PicrossAction::Quit,
+
+                Event::Window { win_event_id: WindowEventId::Resized, data1, data2, .. } =>
+                    self.resize = Some((data1 as u32, data2 as u32)),
 
                 Event::KeyDown { keycode: Some(k), .. } =>
                     return self.state.on_key_down(k),
@@ -198,7 +227,7 @@ impl<'a> Gui<'a> {
 
                 Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } => {
                     let w = Gui::find_widget(&self.widgets, x, y);
-                    if y < toolbar_y ||  w.is_some() {
+                    if y < toolbar_y || w.is_some() {
                         return self.state.on_lmb(board, w, x, y)
                     }
                 },
@@ -248,9 +277,13 @@ impl<'a> Gui<'a> {
             return;
         }
 
-        let screen_w = DEFAULT_SCREEN_WIDTH;
-        let screen_h = DEFAULT_SCREEN_HEIGHT;
-        let toolbar_scale = 1;
+        if let Some((new_w, new_h)) = self.resize {
+            self.state.screen_size = GuiState::calc_screen_size_and_scale(new_w, new_h);
+            self.widgets = Gui::make_widgets(self.state.screen_size);
+            self.resize = None;
+        }
+
+        let (screen_w, screen_h, toolbar_scale) = self.state.screen_size;
         let colour_white = Color::RGB(0xD0, 0xD0, 0xD0);
         let colour_light_grey = Color::RGB(0x98, 0x98, 0x98);
         let colour_dark_grey = Color::RGB(0x58, 0x58, 0x58);
@@ -315,8 +348,9 @@ impl<'a> Gui<'a> {
     }
 
     fn draw_board(gfx: &mut GfxLib<'a>, state: &GuiState, board: &Board) {
-        let board_w = DEFAULT_SCREEN_WIDTH as i32;
-        let board_h = (DEFAULT_SCREEN_HEIGHT - TOOLBAR_BUTTON_HEIGHT - 6) as i32;
+        let (screen_w, screen_h, toolbar_scale) = state.screen_size;
+        let board_w = screen_w as i32;
+        let board_h = (screen_h - toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6)) as i32;
         let x_spacing = TILE_WIDTH + 2;
         let y_spacing = TILE_HEIGHT + 2;
 
@@ -384,17 +418,47 @@ impl<'a> Gui<'a> {
 }
 
 impl GuiState {
-    fn new(offset_x: i32, offset_y: i32) -> GuiState {
+    fn new(screen_w: u32, screen_h: u32) -> GuiState {
+        let screen_size = GuiState::calc_screen_size_and_scale(
+                screen_w, screen_h);
+
+        let (offset_x, offset_y) = GuiState::calc_initial_offset(
+                screen_size, 10, 10);
+
         GuiState {
             mode: GuiMode::Neutral,
             selected_paint: Tile::Filled,
             board: None,
             new_changes: false,
+            screen_size: screen_size,
             offset_x: offset_x,
             offset_y: offset_y,
             last_mouse_x: 0,
             last_mouse_y: 0
         }
+    }
+
+    fn calc_screen_size_and_scale(screen_w: u32, screen_h: u32) -> ScreenSize {
+        let toolbar_w = MIN_TOOLBAR_WIDTH + TOOLBAR_BUTTON_WIDTH + 3; // picross
+        let toolbar_x_scale = screen_w / toolbar_w;
+        let toolbar_y_scale = (screen_h + 400) / 400;
+        let toolbar_scale = max(1, min(toolbar_x_scale, toolbar_y_scale));
+        (screen_w, screen_h, toolbar_scale)
+    }
+
+    fn calc_initial_offset(screen_size: ScreenSize, width: u32, height: u32)
+            -> (i32, i32) {
+        let (screen_w, screen_h, toolbar_scale) = screen_size;
+        let toolbar_height = toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6);
+        let x_spacing = TILE_WIDTH + 2;
+        let y_spacing = TILE_HEIGHT + 2;
+        let pivot_x = (x_spacing * width - 2) / 2;
+        let pivot_y = (y_spacing * height - 2) / 2;
+        let centre_x = (screen_w as i32) / 2 - (pivot_x as i32);
+        let centre_y = ((screen_h - toolbar_height) as i32) / 2
+                        - (pivot_y as i32);
+
+        (centre_x, centre_y)
     }
 
     fn on_key_down(&mut self, keycode: Keycode) -> PicrossAction {
