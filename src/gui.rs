@@ -1,5 +1,6 @@
 // gui.rs
 
+use std::cmp::{max,min};
 use sdl2;
 use sdl2::EventPump;
 use sdl2::TimerSubsystem;
@@ -24,6 +25,7 @@ enum GuiMode {
     Neutral,
     HoldLMB,
     HoldRMB,
+    Pan,
 }
 
 enum WidgetType {
@@ -53,7 +55,9 @@ struct GuiState {
     new_changes: bool,
 
     offset_x: i32,
-    offset_y: i32
+    offset_y: i32,
+    last_mouse_x: i32,
+    last_mouse_y: i32
 }
 
 struct Widget {
@@ -196,11 +200,17 @@ impl<'a> Gui<'a> {
                 Event::MouseButtonDown { mouse_btn: Mouse::Right, x, y, .. } =>
                     return self.state.on_rmb(board, x, y),
 
+                Event::MouseButtonDown { mouse_btn: Mouse::Middle, x, y, .. } =>
+                    return self.state.on_mmb(x, y),
+
                 Event::MouseButtonUp { mouse_btn: Mouse::Left, .. } =>
                     return self.state.on_lmb_up(),
 
                 Event::MouseButtonUp { mouse_btn: Mouse::Right, .. } =>
                     return self.state.on_rmb_up(),
+
+                Event::MouseButtonUp { mouse_btn: Mouse::Middle, .. } =>
+                    return self.state.on_mmb_up(),
 
                 _ => {}
             }
@@ -280,11 +290,20 @@ impl<'a> Gui<'a> {
     }
 
     fn draw_board(gfx: &mut GfxLib<'a>, state: &GuiState, board: &Board) {
+        let board_w = DEFAULT_SCREEN_WIDTH as i32;
+        let board_h = (DEFAULT_SCREEN_HEIGHT - TOOLBAR_BUTTON_HEIGHT - 6) as i32;
         let x_spacing = TILE_WIDTH + 2;
         let y_spacing = TILE_HEIGHT + 2;
 
-        for y in 0..(board.height as u32) {
-            for x in 0..(board.width as u32) {
+        let xmin = max(0, (2 - state.offset_x) / (x_spacing as i32)) as u32;
+        let ymin = max(0, (2 - state.offset_y) / (y_spacing as i32)) as u32;
+        let xmax = max(0, min(board.width as i32,
+                                (board_w - state.offset_x) / (x_spacing as i32) + 1)) as u32;
+        let ymax = max(0, min(board.height as i32,
+                                (board_h - state.offset_y) / (y_spacing as i32) + 1)) as u32;
+
+        for y in ymin..ymax {
+            for x in xmin..xmax {
                 let maybe_t = board.get(x, y);
                 if maybe_t.is_none() {
                     continue;
@@ -347,7 +366,9 @@ impl GuiState {
             board: None,
             new_changes: false,
             offset_x: offset_x,
-            offset_y: offset_y
+            offset_y: offset_y,
+            last_mouse_x: 0,
+            last_mouse_y: 0
         }
     }
 
@@ -399,6 +420,12 @@ impl GuiState {
                     }
                 }
             }
+        } else if self.mode == GuiMode::Pan {
+            self.offset_x = self.offset_x + mx - self.last_mouse_x;
+            self.offset_y = self.offset_y + my - self.last_mouse_y;
+
+            self.last_mouse_x = mx;
+            self.last_mouse_y = my;
         }
 
         PicrossAction::NoOp
@@ -465,6 +492,23 @@ impl GuiState {
             self.board = None;
         }
 
+        PicrossAction::NoOp
+    }
+
+    fn on_mmb(&mut self, mx: i32, my: i32) -> PicrossAction {
+        if self.mode != GuiMode::Neutral {
+            return PicrossAction::NoOp
+        }
+
+        self.mode = GuiMode::Pan;
+        self.last_mouse_x = mx;
+        self.last_mouse_y = my;
+
+        PicrossAction::NoOp
+    }
+
+    fn on_mmb_up(&mut self) -> PicrossAction {
+        self.mode = GuiMode::Neutral;
         PicrossAction::NoOp
     }
 }
