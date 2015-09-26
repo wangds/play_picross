@@ -182,6 +182,8 @@ impl<'a> Gui<'a> {
             return PicrossAction::NoOp;
         }
 
+        let toolbar_y = (DEFAULT_SCREEN_HEIGHT - TOOLBAR_BUTTON_HEIGHT - 6) as i32;
+
         let timeout = self.last_redraw + 1000 / 60 - curr_ticks;
         if let Some(e) = self.event_pump.wait_event_timeout(timeout) {
             match e {
@@ -194,14 +196,30 @@ impl<'a> Gui<'a> {
                 Event::MouseMotion { x, y, .. } =>
                     return self.state.on_mouse_motion(x, y),
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } =>
-                    return self.state.on_lmb(board, x, y),
+                Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } => {
+                    let w = Gui::find_widget(&self.widgets, x, y);
+                    if y < toolbar_y ||  w.is_some() {
+                        return self.state.on_lmb(board, w, x, y)
+                    }
+                },
 
                 Event::MouseButtonDown { mouse_btn: Mouse::Right, x, y, .. } =>
-                    return self.state.on_rmb(board, x, y),
+                    if y < toolbar_y {
+                        return self.state.on_rmb(board, x, y)
+                    },
 
                 Event::MouseButtonDown { mouse_btn: Mouse::Middle, x, y, .. } =>
                     return self.state.on_mmb(x, y),
+
+                Event::MouseButtonDown { mouse_btn: Mouse::Unknown(8), .. } =>
+                    if self.state.mode == GuiMode::Neutral {
+                        return PicrossAction::Undo
+                    },
+
+                Event::MouseButtonDown { mouse_btn: Mouse::Unknown(9), .. } =>
+                    if self.state.mode == GuiMode::Neutral {
+                        return PicrossAction::Redo
+                    },
 
                 Event::MouseButtonUp { mouse_btn: Mouse::Left, .. } =>
                     return self.state.on_lmb_up(),
@@ -216,6 +234,13 @@ impl<'a> Gui<'a> {
             }
         }
         PicrossAction::NoOp
+    }
+
+    fn find_widget(widgets: &Vec<Widget>, x: i32, y: i32) -> Option<&Widget> {
+        widgets.iter().find(|w| {
+                let r = &w.rect;
+                r.x() <= x && x <= r.x() + (r.width() as i32)
+                && r.y() <= y && y <= r.y() + (r.height() as i32) })
     }
 
     pub fn draw_to_screen(&mut self, board: &Board) {
@@ -431,20 +456,32 @@ impl GuiState {
         PicrossAction::NoOp
     }
 
-    fn on_lmb(&mut self, board: &Board, mx: i32, my: i32) -> PicrossAction {
+    fn on_lmb(&mut self, board: &Board, widget: Option<&Widget>, mx: i32, my: i32)
+            -> PicrossAction {
         if self.mode != GuiMode::Neutral {
             return PicrossAction::NoOp
         }
 
-        self.mode = GuiMode::HoldLMB;
+        if let Some(w) = widget {
+            match w.mode {
+                WidgetType::Label => {},
+                WidgetType::Undo => return PicrossAction::Undo,
+                WidgetType::Redo => return PicrossAction::Redo,
 
-        if self.board.is_none() {
-            self.board = Some(board.clone());
-            self.new_changes = false;
-            self.on_mouse_motion(mx, my)
+                WidgetType::Paint(paint,_,_) =>
+                    self.selected_paint = paint
+            }
         } else {
-            PicrossAction::NoOp
+            self.mode = GuiMode::HoldLMB;
+
+            if self.board.is_none() {
+                self.board = Some(board.clone());
+                self.new_changes = false;
+                return self.on_mouse_motion(mx, my)
+            }
         }
+
+        PicrossAction::NoOp
     }
 
     fn on_lmb_up(&mut self) -> PicrossAction {
