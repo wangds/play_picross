@@ -72,6 +72,7 @@ struct GuiState {
     new_changes: bool,
 
     screen_size: ScreenSize,
+    board_scale: u32,
     offset_x: i32,
     offset_y: i32,
     last_mouse_x: i32,
@@ -259,6 +260,9 @@ impl<'a> Gui<'a> {
                 Event::MouseButtonUp { mouse_btn: Mouse::Middle, .. } =>
                     return self.state.on_mmb_up(),
 
+                Event::MouseWheel { y, .. } =>
+                    return self.state.on_wheel(y),
+
                 _ => {}
             }
         }
@@ -351,8 +355,8 @@ impl<'a> Gui<'a> {
         let (screen_w, screen_h, toolbar_scale) = state.screen_size;
         let board_w = screen_w as i32;
         let board_h = (screen_h - toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6)) as i32;
-        let x_spacing = TILE_WIDTH + 2;
-        let y_spacing = TILE_HEIGHT + 2;
+        let x_spacing = state.board_scale * (TILE_WIDTH + 2);
+        let y_spacing = state.board_scale * (TILE_HEIGHT + 2);
 
         let xmin = max(0, (2 - state.offset_x) / (x_spacing as i32)) as u32;
         let ymin = max(0, (2 - state.offset_y) / (y_spacing as i32)) as u32;
@@ -374,9 +378,11 @@ impl<'a> Gui<'a> {
                     Tile::CrossedOut => Res::TileCrossedOut
                 };
 
-                let x0 = state.offset_x + (x_spacing * x) as i32;
-                let y0 = state.offset_y + (y_spacing * y) as i32;
-                let rect = Rect::new_unwrap(x0, y0, TILE_WIDTH, TILE_HEIGHT);
+                let rect = Rect::new_unwrap(
+                        state.offset_x + (x_spacing * x) as i32,
+                        state.offset_y + (y_spacing * y) as i32,
+                        state.board_scale * TILE_WIDTH,
+                        state.board_scale * TILE_HEIGHT);
 
                 gfx.draw(res, rect);
             }
@@ -385,16 +391,17 @@ impl<'a> Gui<'a> {
 
     fn draw_board_line(gfx: &mut GfxLib, state: &GuiState,
             x1: u32, y1: u32, x2: u32, y2: u32) {
-        let board_x = state.offset_x as i32;
-        let board_y = state.offset_y as i32;
+        let board_x = state.offset_x;
+        let board_y = state.offset_y;
+        let scale = state.board_scale;
         let board_x_spacing = TILE_WIDTH + 2;
         let board_y_spacing = TILE_HEIGHT + 2;
 
         let line = Rect::new_unwrap(
-                board_x - 2 + (board_x_spacing * x1) as i32,
-                board_y - 2 + (board_y_spacing * y1) as i32,
-                2 + board_x_spacing * (x2 - x1) as u32,
-                2 + board_y_spacing * (y2 - y1) as u32);
+                board_x + (scale as i32) * ((board_x_spacing * x1) as i32 - 2),
+                board_y + (scale as i32) * ((board_y_spacing * y1) as i32 - 2),
+                scale * (2 + board_x_spacing * (x2 - x1)),
+                scale * (2 + board_y_spacing * (y2 - y1)));
 
         gfx.renderer.fill_rect(line);
     }
@@ -431,6 +438,7 @@ impl GuiState {
             board: None,
             new_changes: false,
             screen_size: screen_size,
+            board_scale: 1,
             offset_x: offset_x,
             offset_y: offset_y,
             last_mouse_x: 0,
@@ -484,7 +492,7 @@ impl GuiState {
             // lmb will only draw on empty tiles.
             if let Some(ref mut b) = self.board {
                 if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
-                        b, mx - self.offset_x, my - self.offset_y) {
+                        b, self.board_scale, mx - self.offset_x, my - self.offset_y) {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = self.selected_paint;
 
@@ -499,7 +507,7 @@ impl GuiState {
             // rmb will clear any tile.
             if let Some(ref mut b) = self.board {
                 if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
-                        b, mx - self.offset_x, my - self.offset_y) {
+                        b, self.board_scale, mx - self.offset_x, my - self.offset_y) {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = Tile::Empty;
 
@@ -612,13 +620,18 @@ impl GuiState {
         self.mode = GuiMode::Neutral;
         PicrossAction::NoOp
     }
+
+    fn on_wheel(&mut self, y: i32) -> PicrossAction {
+        self.board_scale = max(1, min(self.board_scale as i32 + y, 5)) as u32;
+        PicrossAction::NoOp
+    }
 }
 
-fn convert_mouse_coord_to_tile_coord(board: &Board, mx: i32, my: i32)
+fn convert_mouse_coord_to_tile_coord(board: &Board, scale: u32, mx: i32, my: i32)
         -> Option<(u32, u32)> {
     if mx >= 0 || my >= 0 {
-        let x_spacing = TILE_WIDTH + 2;
-        let y_spacing = TILE_HEIGHT + 2;
+        let x_spacing = scale * (TILE_WIDTH + 2);
+        let y_spacing = scale * (TILE_HEIGHT + 2);
         let tx = (mx as u32) / x_spacing;
         let ty = (my as u32) / y_spacing;
 
