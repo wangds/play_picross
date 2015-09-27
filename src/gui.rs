@@ -10,6 +10,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mouse::Mouse;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
+use sdl2::video::FullscreenType;
 use sdl2_image;
 use sdl2_image::INIT_PNG;
 
@@ -17,6 +18,9 @@ use action::PicrossAction;
 use board::Board;
 use board::Tile;
 use gfx::*;
+
+// FIXME - not sure what to import.
+const SDL_WINDOW_FULLSCREEN_DESKTOP: u32 = 0x1001;
 
 const MIN_TOOLBAR_WIDTH: u32
     = 3
@@ -220,6 +224,12 @@ impl<'a> Gui<'a> {
                 Event::Window { win_event_id: WindowEventId::Resized, data1, data2, .. } =>
                     self.resize = Some((data1 as u32, data2 as u32)),
 
+                Event::KeyDown { keycode: Some(Keycode::F), .. }
+                | Event::KeyDown { keycode: Some(Keycode::F11), .. } => {
+                    self.toggle_fullscreen();
+                    return PicrossAction::NoOp
+                },
+
                 Event::KeyDown { keycode: Some(k), .. } =>
                     return self.state.on_key_down(k),
 
@@ -274,6 +284,16 @@ impl<'a> Gui<'a> {
                 let r = &w.rect;
                 r.x() <= x && x <= r.x() + (r.width() as i32)
                 && r.y() <= y && y <= r.y() + (r.height() as i32) })
+    }
+
+    fn toggle_fullscreen(&mut self) {
+        let mut window = self.gfx.renderer.window_mut().unwrap();
+
+        if window.window_flags() & SDL_WINDOW_FULLSCREEN_DESKTOP != 0 {
+            window.set_fullscreen(FullscreenType::Off).unwrap();
+        } else {
+            window.set_fullscreen(FullscreenType::Desktop).unwrap();
+        }
     }
 
     pub fn draw_to_screen(&mut self, board: &Board) {
