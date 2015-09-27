@@ -31,6 +31,12 @@ fn main() {
         match gui.read_input(puzzle.get_board()) {
             PicrossAction::NoOp => {},
             PicrossAction::Quit => quit = true,
+
+            PicrossAction::New(filename) =>
+                if let Some(p) = Puzzle::load_file(&filename) {
+                    puzzle = p;
+                },
+
             PicrossAction::Undo => puzzle.undo(),
             PicrossAction::Redo => puzzle.redo(),
             PicrossAction::Update(new_b) => puzzle.update(new_b)

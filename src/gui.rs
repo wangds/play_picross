@@ -277,6 +277,14 @@ impl<'a> Gui<'a> {
                 Event::MouseWheel { y, .. } =>
                     return self.state.on_wheel(y),
 
+                Event::DropFile { filename, .. } => {
+                    self.state.mode = GuiMode::Neutral;
+                    self.state.board = None;
+                    self.state.highlight = None;
+
+                    return PicrossAction::New(filename)
+                },
+
                 _ => {}
             }
         }
