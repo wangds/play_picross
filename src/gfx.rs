@@ -8,6 +8,13 @@ use sdl2::render::Renderer;
 use sdl2::render::Texture;
 use sdl2_image::LoadTexture;
 
+#[derive(Clone,Copy)]
+pub enum Font {
+    Unsolved,
+    Solved,
+    Conflict
+}
+
 #[derive(Clone,Copy,Eq,Hash,PartialEq)]
 pub enum Res {
     ToolbarPicross,
@@ -22,8 +29,15 @@ pub enum Res {
     TileEmpty,
     TileFilled,
     TileCrossedOut,
+
+    // Font(0..9)
+    FontUnsolved(u8),
+    FontSolved(u8),
+    FontConflict(u8)
 }
 
+pub const FONT_WIDTH: u32 = 7;
+pub const FONT_HEIGHT: u32 = 7;
 pub const TILE_WIDTH: u32 = 15;
 pub const TILE_HEIGHT: u32 = 15;
 pub const TOOLBAR_BUTTON_HEIGHT: u32 = 9;
@@ -73,6 +87,18 @@ impl<'a> GfxLib<'a> {
         lib.insert(Res::TileFilled,
                 Rect::new_unwrap(40, 10, TILE_WIDTH, TILE_HEIGHT));
 
+        for i in 0..10 {
+            let font_spacing = FONT_WIDTH + 1;
+            let x = (font_spacing * i) as i32;
+
+            lib.insert(Res::FontSolved(i as u8),
+                    Rect::new_unwrap(x, 50, FONT_WIDTH, FONT_HEIGHT));
+            lib.insert(Res::FontUnsolved(i as u8),
+                    Rect::new_unwrap(x, 60, FONT_WIDTH, FONT_HEIGHT));
+            lib.insert(Res::FontConflict(i as u8),
+                    Rect::new_unwrap(x, 70, FONT_WIDTH, FONT_HEIGHT));
+        }
+
         GfxLib {
             renderer: renderer,
             texture: texture,
@@ -106,4 +132,53 @@ impl<'a> GfxLib<'a> {
             self.renderer.copy(&self.texture, Some(src), Some(dst));
         }
     }
+
+    pub fn text_centre(&mut self, font: Font, text: u32,
+            scale: u32, xcentre: i32, y: i32) {
+        let text_width = text_pixel_width(text, scale) as i32;
+        self.text_right(font, text, scale, xcentre + text_width / 2, y);
+    }
+
+    pub fn text_right(&mut self, font: Font, text: u32,
+            scale: u32, xright: i32, y: i32) {
+        let font_spacing = (scale * (FONT_WIDTH - 1)) as i32;
+        let mut x = xright - (scale * FONT_WIDTH) as i32;
+        let mut n = text;
+
+        // don't draw anything for 0 (empty lines)
+        while n > 0 {
+            let dst = Rect::new_unwrap(x, y, scale * FONT_WIDTH, scale * FONT_HEIGHT);
+            let digit = (n % 10) as u8;
+
+            let res = match font {
+                Font::Unsolved => Res::FontUnsolved(digit),
+                Font::Solved => Res::FontSolved(digit),
+                Font::Conflict => Res::FontConflict(digit)
+            };
+
+            if let Some(&src) = self.lib.get(&res) {
+                self.renderer.copy(&self.texture, Some(src), Some(dst));
+            }
+
+            x = x - font_spacing;
+            n = n / 10;
+        }
+    }
+}
+
+pub fn text_pixel_width(text: u32, scale: u32) -> u32 {
+    let digits = count_digits(text);
+    let font_spacing = FONT_WIDTH - 1;
+    scale * (FONT_WIDTH + font_spacing * (digits - 1))
+}
+
+fn count_digits(text: u32) -> u32 {
+    let mut digits = 1;
+    let mut n = text;
+    while n >= 10 {
+        n = n / 10;
+        digits = digits + 1;
+    }
+
+    digits
 }

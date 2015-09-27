@@ -36,6 +36,6 @@ fn main() {
             PicrossAction::Update(new_b) => puzzle.update(new_b)
         }
 
-        gui.draw_to_screen(puzzle.get_board());
+        gui.draw_to_screen(puzzle.get_rules(), puzzle.get_board());
     }
 }

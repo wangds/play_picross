@@ -80,6 +80,10 @@ impl Puzzle {
         }
     }
 
+    pub fn get_rules(&self) -> Rules {
+        (&self.col_rules, &self.row_rules)
+    }
+
     pub fn get_board(&self) -> &Board {
         &self.history[self.curr_history]
     }

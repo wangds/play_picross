@@ -18,6 +18,7 @@ use action::PicrossAction;
 use board::Board;
 use board::Tile;
 use gfx::*;
+use puzzle::Rules;
 
 // FIXME - not sure what to import.
 const SDL_WINDOW_FULLSCREEN_DESKTOP: u32 = 0x1001;
@@ -299,7 +300,7 @@ impl<'a> Gui<'a> {
         }
     }
 
-    pub fn draw_to_screen(&mut self, board: &Board) {
+    pub fn draw_to_screen(&mut self, rules: Rules, board: &Board) {
         if !self.redraw {
             return;
         }
@@ -361,8 +362,10 @@ impl<'a> Gui<'a> {
         }
 
         if let Some(ref b) = self.state.board {
+            Gui::draw_rules(&mut self.gfx, &self.state, rules, b);
             Gui::draw_board(&mut self.gfx, &self.state, b);
         } else {
+            Gui::draw_rules(&mut self.gfx, &self.state, rules, board);
             Gui::draw_board(&mut self.gfx, &self.state, board);
         }
 
@@ -381,6 +384,77 @@ impl<'a> Gui<'a> {
         self.gfx.renderer.present();
         self.redraw = false;
         self.last_redraw = self.timer.ticks();
+    }
+
+    fn draw_rules(gfx: &mut GfxLib<'a>, state: &GuiState,
+            rules: Rules, board: &Board) {
+        let scale = state.board_scale;
+        let text_scale = min(2, scale);
+        let (col_rules, row_rules) = rules;
+        let x_spacing = (text_scale * 5) as i32;
+        let y_spacing = (text_scale * (FONT_HEIGHT + 2)) as i32;
+
+        let mut x = state.offset_x + (scale * TILE_WIDTH / 2 + 1) as i32;
+        for (col, rule) in col_rules.iter().enumerate() {
+            let len = rule.len();
+            let head = board.get_completed_column_segments_from_head(col);
+            let tail = board.get_completed_column_segments_from_tail(col);
+            let mut y = state.offset_y - (scale * 4 + text_scale * FONT_HEIGHT) as i32;
+
+            for i in 0..len {
+                let revi = len - i - 1;
+                let v = rule[revi];
+                let font = Gui::pick_font(v, len, &head, revi, &tail, i);
+
+                gfx.text_centre(font, v, text_scale, x, y);
+                y = y - y_spacing;
+            }
+
+            x = x + (scale * (TILE_WIDTH + 2)) as i32;
+        }
+
+        let mut y = state.offset_y + (scale * TILE_HEIGHT - text_scale * FONT_HEIGHT) as i32 / 2;
+        for (row, rule) in row_rules.iter().enumerate() {
+            let len = rule.len();
+            let head = board.get_completed_row_segments_from_head(row);
+            let tail = board.get_completed_row_segments_from_tail(row);
+            let mut x = state.offset_x - (scale * 4) as i32;
+
+            for i in 0..len {
+                let revi = len - i - 1;
+                let v = rule[revi];
+                let font = Gui::pick_font(v, len, &head, revi, &tail, i);
+
+                gfx.text_right(font, v, text_scale, x, y);
+                x = x - x_spacing - text_pixel_width(v, text_scale) as i32;
+            }
+
+            y = y + (scale * (TILE_HEIGHT + 2)) as i32;
+        }
+    }
+
+    fn pick_font(v: u32, len: usize,
+            head: &Vec<u32>, head_idx: usize,
+            tail: &Vec<u32>, tail_idx: usize) -> Font {
+        if head.len() > len || tail.len() > len {
+            Font::Conflict
+        } else if head_idx < head.len() {
+            if v == head[head_idx] {
+                assert!(tail_idx >= tail.len() || v == tail[tail_idx]);
+                Font::Solved
+            } else {
+                Font::Conflict
+            }
+        } else if tail_idx < tail.len() {
+            if v == tail[tail_idx] {
+                assert!(head_idx >= head.len() || v == head[head_idx]);
+                Font::Solved
+            } else {
+                Font::Conflict
+            }
+        } else {
+            Font::Unsolved
+        }
     }
 
     fn draw_board(gfx: &mut GfxLib<'a>, state: &GuiState, board: &Board) {
