@@ -9,6 +9,8 @@ mod gfx;
 mod gui;
 mod puzzle;
 
+use std::env;
+
 use action::PicrossAction;
 use gui::Gui;
 use puzzle::Puzzle;
@@ -17,6 +19,13 @@ fn main() {
     let mut gui = Gui::new();
     let mut puzzle = Puzzle::new(10, 10);
     let mut quit = false;
+
+    if env::args().count() > 1 {
+        let filename = env::args().nth(1).unwrap();
+        if let Some(p) = Puzzle::load_file(&filename) {
+            puzzle = p;
+        }
+    }
 
     while !quit {
         match gui.read_input(puzzle.get_board()) {
