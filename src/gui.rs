@@ -80,7 +80,10 @@ struct GuiState {
     offset_x: i32,
     offset_y: i32,
     last_mouse_x: i32,
-    last_mouse_y: i32
+    last_mouse_y: i32,
+
+    // Some(x,y) to highlight a row and a column
+    highlight: Option<(u32,u32)>
 }
 
 struct Widget {
@@ -234,7 +237,7 @@ impl<'a> Gui<'a> {
                     return self.state.on_key_down(k),
 
                 Event::MouseMotion { x, y, .. } =>
-                    return self.state.on_mouse_motion(x, y),
+                    return self.state.on_mouse_motion(board, x, y),
 
                 Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } => {
                     let w = Gui::find_widget(&self.widgets, x, y);
@@ -311,6 +314,7 @@ impl<'a> Gui<'a> {
         let colour_white = Color::RGB(0xD0, 0xD0, 0xD0);
         let colour_light_grey = Color::RGB(0x98, 0x98, 0x98);
         let colour_dark_grey = Color::RGB(0x58, 0x58, 0x58);
+        let colour_rose = Color::RGB(0xC2, 0xBC, 0xBC);
 
         let toolbar_rect = Rect::new_unwrap(
                 0,
@@ -322,6 +326,14 @@ impl<'a> Gui<'a> {
         self.gfx.renderer.clear();
 
         // board
+        if let Some((x, y)) = self.state.highlight {
+            self.gfx.renderer.set_draw_color(colour_rose);
+            Gui::draw_board_line(&mut self.gfx, &self.state,
+                    x, 0, x + 1, board.height as u32);
+            Gui::draw_board_line(&mut self.gfx, &self.state,
+                    0, y, board.width as u32, y + 1);
+        }
+
         self.gfx.renderer.set_draw_color(colour_light_grey);
         for y in 0..(board.height + 1) as u32 {
             Gui::draw_board_line(&mut self.gfx, &self.state,
@@ -462,7 +474,8 @@ impl GuiState {
             offset_x: offset_x,
             offset_y: offset_y,
             last_mouse_x: 0,
-            last_mouse_y: 0
+            last_mouse_y: 0,
+            highlight: None
         }
     }
 
@@ -507,12 +520,15 @@ impl GuiState {
         PicrossAction::NoOp
     }
 
-    fn on_mouse_motion(&mut self, mx: i32, my: i32) -> PicrossAction {
+    fn on_mouse_motion(&mut self, board: &Board, mx: i32, my: i32) -> PicrossAction {
+        let maybe_tile_coord = convert_mouse_coord_to_tile_coord(
+                board, self.board_scale, mx - self.offset_x, my - self.offset_y);
+        self.highlight = maybe_tile_coord;
+
         if self.mode == GuiMode::HoldLMB {
             // lmb will only draw on empty tiles.
             if let Some(ref mut b) = self.board {
-                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
-                        b, self.board_scale, mx - self.offset_x, my - self.offset_y) {
+                if let Some((tx, ty)) = maybe_tile_coord {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = self.selected_paint;
 
@@ -526,8 +542,7 @@ impl GuiState {
         } else if self.mode == GuiMode::HoldRMB {
             // rmb will clear any tile.
             if let Some(ref mut b) = self.board {
-                if let Some((tx, ty)) = convert_mouse_coord_to_tile_coord(
-                        b, self.board_scale, mx - self.offset_x, my - self.offset_y) {
+                if let Some((tx, ty)) = maybe_tile_coord {
                     let old_tile = b.get(tx, ty).unwrap();
                     let new_tile = Tile::Empty;
 
@@ -569,7 +584,7 @@ impl GuiState {
             if self.board.is_none() {
                 self.board = Some(board.clone());
                 self.new_changes = false;
-                return self.on_mouse_motion(mx, my)
+                return self.on_mouse_motion(board, mx, my)
             }
         }
 
@@ -602,7 +617,7 @@ impl GuiState {
         if self.board.is_none() {
             self.board = Some(board.clone());
             self.new_changes = false;
-            self.on_mouse_motion(mx, my)
+            self.on_mouse_motion(board, mx, my)
         } else {
             PicrossAction::NoOp
         }
