@@ -39,7 +39,12 @@ fn main() {
 
             PicrossAction::Undo => puzzle.undo(),
             PicrossAction::Redo => puzzle.redo(),
-            PicrossAction::Update(new_b) => puzzle.update(new_b)
+            PicrossAction::Update(new_b) => puzzle.update(new_b),
+
+            PicrossAction::AutoFill =>
+                if let Some(new_b) = puzzle.get_board().autofill(puzzle.get_rules()) {
+                    puzzle.update(new_b);
+                }
         }
 
         gui.draw_to_screen(puzzle.get_rules(), puzzle.get_board());

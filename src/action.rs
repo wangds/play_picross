@@ -11,5 +11,7 @@ pub enum PicrossAction {
 
     Undo,
     Redo,
-    Update(Board)
+    Update(Board),
+
+    AutoFill,
 }

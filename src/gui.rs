@@ -592,6 +592,7 @@ impl GuiState {
         match keycode {
             Keycode::Z => return PicrossAction::Undo,
             Keycode::X => return PicrossAction::Redo,
+            Keycode::A => return PicrossAction::AutoFill,
 
             Keycode::Num1 => self.selected_paint = Tile::Empty,
             Keycode::Num2 => self.selected_paint = Tile::CrossedOut,
