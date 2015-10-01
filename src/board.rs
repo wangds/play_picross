@@ -1,5 +1,7 @@
 // board.rs
 
+use std::collections::HashMap;
+
 use puzzle::Rule;
 use puzzle::Rules;
 
@@ -214,8 +216,9 @@ impl Board {
         for (row, rule) in row_rules.iter().enumerate() {
             let mut trial = self.make_row_slice(row);
             let mut accum = trial.clone();
+            let mut cache = HashMap::new();
 
-            try_autofill(&mut trial, 0, rule, 0, &mut accum);
+            try_autofill(&mut trial, 0, rule, 0, &mut accum, &mut cache);
 
             for (x, &t) in accum.iter().enumerate() {
                 if t == AutoFillTile::CanBeFilled {
@@ -229,8 +232,9 @@ impl Board {
         for (col, rule) in col_rules.iter().enumerate() {
             let mut trial = self.make_col_slice(col);
             let mut accum = trial.clone();
+            let mut cache = HashMap::new();
 
-            try_autofill(&mut trial, 0, rule, 0, &mut accum);
+            try_autofill(&mut trial, 0, rule, 0, &mut accum, &mut cache);
 
             for (y, &t) in accum.iter().enumerate() {
                 if t == AutoFillTile::CanBeFilled {
@@ -275,14 +279,22 @@ fn make_autofill_tile(t: Tile) -> AutoFillTile {
 fn try_autofill(
         trial: &mut Vec<AutoFillTile>, pos: usize,
         rule: &Rule, rule_idx: usize,
-        accum: &mut Vec<AutoFillTile>)
+        accum: &mut Vec<AutoFillTile>,
+        cache: &mut HashMap<(usize, usize), AutoFillResult>)
         -> AutoFillResult {
     assert!(pos <= trial.len() && rule_idx <= rule.len());
+    let key = (pos, rule_idx);
 
     // base case
-    if pos == trial.len() {
-        if rule_idx == rule.len() {
-            for (a, &mut t) in accum.iter_mut().zip(trial) {
+    {
+        let maybe_visited = cache.get(&key);
+        if pos == trial.len() || maybe_visited.is_some() {
+            if maybe_visited.map_or(rule_idx != rule.len(),
+                    |&v| v == AutoFillResult::Conflict) {
+                return AutoFillResult::Conflict
+            }
+
+            for (a, &mut t) in accum[0..pos].iter_mut().zip(trial) {
                 *a = combine_solutions(t, *a);
             }
 
@@ -292,7 +304,6 @@ fn try_autofill(
                 return AutoFillResult::SearchEnded
             }
         }
-        return AutoFillResult::Conflict
     }
 
     // not enough space
@@ -315,7 +326,7 @@ fn try_autofill(
             trial[pos] = AutoFillTile::CanBeCrossedOut;
         }
 
-        let r = try_autofill(trial, pos + 1, rule, rule_idx, accum);
+        let r = try_autofill(trial, pos + 1, rule, rule_idx, accum, cache);
         if r == AutoFillResult::SearchEnded {
             return AutoFillResult::SearchEnded
         } else if r == AutoFillResult::SolutionFound {
@@ -343,7 +354,8 @@ fn try_autofill(
             rule_len = rule_len + 1;
         }
 
-        let r = try_autofill(trial, pos + rule_len, rule, rule_idx + 1, accum);
+        let r = try_autofill(
+                trial, pos + rule_len, rule, rule_idx + 1, accum, cache);
         if r == AutoFillResult::SearchEnded {
             return AutoFillResult::SearchEnded
         } else if r == AutoFillResult::SolutionFound {
@@ -351,6 +363,7 @@ fn try_autofill(
         }
     }
 
+    cache.insert(key, result);
     result
 }
 
