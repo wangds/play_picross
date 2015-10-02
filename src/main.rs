@@ -27,6 +27,8 @@ fn main() {
         }
     }
 
+    gui.on_new_puzzle(&puzzle);
+
     while !quit {
         match gui.read_input(puzzle.get_board()) {
             PicrossAction::NoOp => {},
@@ -35,6 +37,7 @@ fn main() {
             PicrossAction::New(filename) =>
                 if let Some(p) = Puzzle::load_file(&filename) {
                     puzzle = p;
+                    gui.on_new_puzzle(&puzzle);
                 },
 
             PicrossAction::Undo => puzzle.undo(),

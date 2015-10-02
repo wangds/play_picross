@@ -18,6 +18,8 @@ use action::PicrossAction;
 use board::Board;
 use board::Tile;
 use gfx::*;
+use puzzle::Puzzle;
+use puzzle::Rule;
 use puzzle::Rules;
 
 // FIXME - not sure what to import.
@@ -80,6 +82,10 @@ struct GuiState {
     board_scale: u32,
     offset_x: i32,
     offset_y: i32,
+    board_pixel_width: u32,
+    board_pixel_height: u32,
+    row_rule_max_pixel_width: u32,
+    col_rule_max_pixel_height: u32,
     last_mouse_x: i32,
     last_mouse_y: i32,
 
@@ -209,6 +215,10 @@ impl<'a> Gui<'a> {
         ws
     }
 
+    pub fn on_new_puzzle(&mut self, puzzle: &Puzzle) {
+        self.state.on_new_puzzle(puzzle);
+    }
+
     pub fn read_input(&mut self, board: &Board) -> PicrossAction {
         let curr_ticks = self.timer.ticks();
         if curr_ticks >= self.last_redraw + 1000 / 60 {
@@ -314,7 +324,7 @@ impl<'a> Gui<'a> {
         }
 
         if let Some((new_w, new_h)) = self.resize {
-            self.state.screen_size = GuiState::calc_screen_size_and_scale(new_w, new_h);
+            self.state.on_resize_window(new_w, new_h);
             self.widgets = Gui::make_widgets(self.state.screen_size);
             self.resize = None;
         }
@@ -543,9 +553,6 @@ impl GuiState {
         let screen_size = GuiState::calc_screen_size_and_scale(
                 screen_w, screen_h);
 
-        let (offset_x, offset_y) = GuiState::calc_initial_offset(
-                screen_size, 10, 10);
-
         GuiState {
             mode: GuiMode::Neutral,
             selected_paint: Tile::Filled,
@@ -553,8 +560,12 @@ impl GuiState {
             new_changes: false,
             screen_size: screen_size,
             board_scale: 1,
-            offset_x: offset_x,
-            offset_y: offset_y,
+            offset_x: 0,
+            offset_y: 0,
+            board_pixel_width: 0,
+            board_pixel_height: 0,
+            row_rule_max_pixel_width: 0,
+            col_rule_max_pixel_height: 0,
             last_mouse_x: 0,
             last_mouse_y: 0,
             highlight: None
@@ -569,19 +580,89 @@ impl GuiState {
         (screen_w, screen_h, toolbar_scale)
     }
 
-    fn calc_initial_offset(screen_size: ScreenSize, width: u32, height: u32)
-            -> (i32, i32) {
-        let (screen_w, screen_h, toolbar_scale) = screen_size;
-        let toolbar_height = toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6);
-        let x_spacing = TILE_WIDTH + 2;
-        let y_spacing = TILE_HEIGHT + 2;
-        let pivot_x = (x_spacing * width - 2) / 2;
-        let pivot_y = (y_spacing * height - 2) / 2;
-        let centre_x = (screen_w as i32) / 2 - (pivot_x as i32);
-        let centre_y = ((screen_h - toolbar_height) as i32) / 2
-                        - (pivot_y as i32);
+    fn calc_default_offset(&self) -> (i32, i32) {
+        let (screen_w, screen_h, toolbar_scale) = self.screen_size;
+        let board_scale = self.board_scale as i32;
+        let text_scale = min(2, board_scale);
+        let toolbar_h = toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6);
+        let canvas_w = screen_w as i32;
+        let canvas_h = (screen_h - toolbar_h) as i32;
+        let scaled_board_w = board_scale * (self.board_pixel_width + 2) as i32;
+        let scaled_text_w = board_scale * 4 + text_scale * self.row_rule_max_pixel_width as i32;
 
-        (centre_x, centre_y)
+        let offset_x =
+            if canvas_w < scaled_board_w {
+                // centre board
+                (canvas_w - scaled_board_w) / 2
+            } else if canvas_w < scaled_board_w + scaled_text_w {
+                // right of board at right of screen
+                canvas_w - scaled_board_w
+            } else if canvas_w < scaled_board_w + scaled_text_w * 2 {
+                // left of text at left of screen
+                scaled_text_w
+            } else {
+                // centre board
+                (canvas_w - scaled_board_w) / 2
+            };
+        let offset_y = (canvas_h
+                        - board_scale * self.board_pixel_height as i32
+                        + board_scale * 4
+                        + text_scale * self.col_rule_max_pixel_height as i32) / 2;
+
+        (offset_x, offset_y)
+    }
+
+    fn on_new_puzzle(&mut self, puzzle: &Puzzle) {
+        let b = puzzle.get_board();
+        let (col_rules, row_rules) = puzzle.get_rules();
+        let board_x_spacing = TILE_WIDTH + 2;
+        let board_y_spacing = TILE_HEIGHT + 2;
+
+        self.board_pixel_width = board_x_spacing * b.width as u32 - 2;
+        self.board_pixel_height = board_y_spacing * b.height as u32 - 2;
+
+        self.row_rule_max_pixel_width = row_rules.iter().fold(0,
+                |n, r| max(n, calc_rule_width(r)));
+
+        self.col_rule_max_pixel_height = col_rules.iter().fold(0,
+                |n, r| max(n, calc_rule_height(r)));
+
+        let (mut offset_x, mut offset_y) = self.calc_default_offset();
+
+        // if board is too big, show top-left corner of board
+        if offset_x < self.row_rule_max_pixel_width as i32 {
+            offset_x = self.row_rule_max_pixel_width as i32;
+        }
+        if offset_y < self.col_rule_max_pixel_height as i32 {
+            offset_y = self.col_rule_max_pixel_height as i32;
+        }
+        if offset_x < 2 {
+            offset_x = 2;
+        }
+        if offset_y < 2 {
+            offset_y = 2;
+        }
+
+        self.offset_x = offset_x;
+        self.offset_y = offset_y;
+    }
+
+    fn on_resize_window(&mut self, new_screen_w: u32, new_screen_h: u32) {
+        let (old_screen_w, old_screen_h, _) = self.screen_size;
+        let old_offset_x = self.offset_x;
+        let old_offset_y = self.offset_y;
+
+        self.screen_size = GuiState::calc_screen_size_and_scale(
+                new_screen_w, new_screen_h);
+
+        let (desired_x, desired_y) = self.calc_default_offset();
+        let diff_x = (new_screen_w as i32 - old_screen_w as i32).abs();
+        let diff_y = (new_screen_h as i32 - old_screen_h as i32).abs();
+
+        self.offset_x = max(old_offset_x - diff_x,
+                            min(desired_x, old_offset_x + diff_x));
+        self.offset_y = max(old_offset_y - diff_y,
+                            min(desired_y, old_offset_y + diff_y));
     }
 
     fn on_key_down(&mut self, keycode: Keycode) -> PicrossAction {
@@ -759,4 +840,27 @@ fn convert_mouse_coord_to_tile_coord(board: &Board, scale: u32, mx: i32, my: i32
     }
 
     None
+}
+
+fn calc_rule_width(rule: &Rule) -> u32 {
+    let x_spacing = 5;
+    let num_rules = rule.len() as u32;
+
+    if num_rules > 0 {
+        rule.iter().fold(0, |sum, &v|
+                sum + text_pixel_width(v, 1)) + x_spacing * (num_rules - 1)
+    } else {
+        0
+    }
+}
+
+fn calc_rule_height(rule: &Rule) -> u32 {
+    let y_spacing = 2;
+    let num_rules = rule.len() as u32;
+
+    if num_rules > 0 {
+        FONT_HEIGHT * num_rules + y_spacing * (num_rules - 1)
+    } else {
+        0
+    }
 }
