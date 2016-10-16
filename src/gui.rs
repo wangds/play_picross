@@ -103,7 +103,7 @@ impl<'a> Gui<'a> {
         let sdl = sdl2::init().unwrap();
         let video = sdl.video().unwrap();
 
-        sdl2_image::init(INIT_PNG);
+        let _ = sdl2_image::init(INIT_PNG);
 
         let state = GuiState::new(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT);
         let screen_size = state.screen_size;
@@ -115,7 +115,7 @@ impl<'a> Gui<'a> {
             .opengl()
             .build().unwrap();
 
-        window.set_minimum_size(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
+        let _ = window.set_minimum_size(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
 
         let renderer = window.renderer().build().unwrap();
         let timer = sdl.timer().unwrap();
@@ -389,10 +389,10 @@ impl<'a> Gui<'a> {
 
         // toolbar
         self.gfx.renderer.set_draw_color(colour_light_grey);
-        self.gfx.renderer.fill_rect(toolbar_rect);
+        let _ = self.gfx.renderer.fill_rect(toolbar_rect);
 
         self.gfx.renderer.set_draw_color(colour_dark_grey);
-        self.gfx.renderer.draw_rect(toolbar_rect);
+        let _ = self.gfx.renderer.draw_rect(toolbar_rect);
 
         // widgets
         for w in self.widgets.iter() {
@@ -527,7 +527,7 @@ impl<'a> Gui<'a> {
                 scale * (2 + board_x_spacing * (x2 - x1)),
                 scale * (2 + board_y_spacing * (y2 - y1)));
 
-        gfx.renderer.fill_rect(line);
+        let _ = gfx.renderer.fill_rect(line);
     }
 
     fn draw_widget(gfx: &mut GfxLib, state: &GuiState, widget: &Widget) {

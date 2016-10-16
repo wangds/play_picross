@@ -129,7 +129,7 @@ impl<'a> GfxLib<'a> {
 
     pub fn draw(&mut self, res: Res, dst: Rect) {
         if let Some(&src) = self.lib.get(&res) {
-            self.renderer.copy(&self.texture, Some(src), Some(dst));
+            let _ = self.renderer.copy(&self.texture, Some(src), Some(dst));
         }
     }
 
@@ -157,7 +157,7 @@ impl<'a> GfxLib<'a> {
             };
 
             if let Some(&src) = self.lib.get(&res) {
-                self.renderer.copy(&self.texture, Some(src), Some(dst));
+                let _ = self.renderer.copy(&self.texture, Some(src), Some(dst));
             }
 
             x = x - font_spacing;
