@@ -61,42 +61,42 @@ impl<'a> GfxLib<'a> {
         let mut lib = HashMap::new();
 
         lib.insert(Res::ToolbarPicross,
-                Rect::new_unwrap( 0,  0, TOOLBAR_BUTTON_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new( 0,  0, TOOLBAR_BUTTON_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarUndo,
-                Rect::new_unwrap(54,  0, TOOLBAR_UNDO_REDO_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(54,  0, TOOLBAR_UNDO_REDO_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarRedo,
-                Rect::new_unwrap(64,  0, TOOLBAR_UNDO_REDO_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(64,  0, TOOLBAR_UNDO_REDO_WIDTH, TOOLBAR_BUTTON_HEIGHT));
 
         lib.insert(Res::ToolbarActiveEmpty,
-                Rect::new_unwrap( 0, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new( 0, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarInactiveEmpty,
-                Rect::new_unwrap( 0, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new( 0, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarActiveCrossedOut,
-                Rect::new_unwrap(14, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(14, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarInactiveCrossedOut,
-                Rect::new_unwrap(14, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(14, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarActiveFilled,
-                Rect::new_unwrap(28, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(28, 30, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
         lib.insert(Res::ToolbarInactiveFilled,
-                Rect::new_unwrap(28, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
+                Rect::new(28, 40, TOOLBAR_PAINT_WIDTH, TOOLBAR_BUTTON_HEIGHT));
 
         lib.insert(Res::TileEmpty,
-                Rect::new_unwrap( 0, 10, TILE_WIDTH, TILE_HEIGHT));
+                Rect::new( 0, 10, TILE_WIDTH, TILE_HEIGHT));
         lib.insert(Res::TileCrossedOut,
-                Rect::new_unwrap(20, 10, TILE_WIDTH, TILE_HEIGHT));
+                Rect::new(20, 10, TILE_WIDTH, TILE_HEIGHT));
         lib.insert(Res::TileFilled,
-                Rect::new_unwrap(40, 10, TILE_WIDTH, TILE_HEIGHT));
+                Rect::new(40, 10, TILE_WIDTH, TILE_HEIGHT));
 
         for i in 0..10 {
             let font_spacing = FONT_WIDTH + 1;
             let x = (font_spacing * i) as i32;
 
             lib.insert(Res::FontSolved(i as u8),
-                    Rect::new_unwrap(x, 50, FONT_WIDTH, FONT_HEIGHT));
+                    Rect::new(x, 50, FONT_WIDTH, FONT_HEIGHT));
             lib.insert(Res::FontUnsolved(i as u8),
-                    Rect::new_unwrap(x, 60, FONT_WIDTH, FONT_HEIGHT));
+                    Rect::new(x, 60, FONT_WIDTH, FONT_HEIGHT));
             lib.insert(Res::FontConflict(i as u8),
-                    Rect::new_unwrap(x, 70, FONT_WIDTH, FONT_HEIGHT));
+                    Rect::new(x, 70, FONT_WIDTH, FONT_HEIGHT));
         }
 
         GfxLib {
@@ -147,7 +147,7 @@ impl<'a> GfxLib<'a> {
 
         // don't draw anything for 0 (empty lines)
         while n > 0 {
-            let dst = Rect::new_unwrap(x, y, scale * FONT_WIDTH, scale * FONT_HEIGHT);
+            let dst = Rect::new(x, y, scale * FONT_WIDTH, scale * FONT_HEIGHT);
             let digit = (n % 10) as u8;
 
             let res = match font {

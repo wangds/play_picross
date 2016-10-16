@@ -162,7 +162,7 @@ impl<'a> Gui<'a> {
         if label_visible {
             ws.push(Widget {
                     mode: WidgetType::Label,
-                    rect: Rect::new_unwrap(
+                    rect: Rect::new(
                             (toolbar_scale * 3) as i32,
                             y,
                             toolbar_scale * TOOLBAR_BUTTON_WIDTH,
@@ -173,7 +173,7 @@ impl<'a> Gui<'a> {
         // undo
         ws.push(Widget {
                 mode: WidgetType::Undo,
-                rect: Rect::new_unwrap(x_undo, y,
+                rect: Rect::new(x_undo, y,
                         toolbar_scale * TOOLBAR_UNDO_REDO_WIDTH,
                         toolbar_scale * TOOLBAR_BUTTON_HEIGHT),
                 });
@@ -181,7 +181,7 @@ impl<'a> Gui<'a> {
         // redo
         ws.push(Widget {
                 mode: WidgetType::Redo,
-                rect: Rect::new_unwrap(x_redo, y,
+                rect: Rect::new(x_redo, y,
                         toolbar_scale * TOOLBAR_UNDO_REDO_WIDTH,
                         toolbar_scale * TOOLBAR_BUTTON_HEIGHT),
                 });
@@ -189,14 +189,14 @@ impl<'a> Gui<'a> {
         // paints
         ws.push(Widget {
                 mode: WidgetType::Paint(Tile::Empty, Res::ToolbarActiveEmpty, Res::ToolbarInactiveEmpty),
-                rect: Rect::new_unwrap(x_palette, y,
+                rect: Rect::new(x_palette, y,
                         toolbar_scale * TOOLBAR_PAINT_WIDTH,
                         toolbar_scale * TOOLBAR_BUTTON_HEIGHT),
                 });
 
         ws.push(Widget {
                 mode: WidgetType::Paint(Tile::CrossedOut, Res::ToolbarActiveCrossedOut, Res::ToolbarInactiveCrossedOut),
-                rect: Rect::new_unwrap(
+                rect: Rect::new(
                         x_palette + (toolbar_scale * (TOOLBAR_PAINT_WIDTH + 2)) as i32,
                         y,
                         toolbar_scale * TOOLBAR_PAINT_WIDTH,
@@ -205,7 +205,7 @@ impl<'a> Gui<'a> {
 
         ws.push(Widget {
                 mode: WidgetType::Paint(Tile::Filled, Res::ToolbarActiveFilled, Res::ToolbarInactiveFilled),
-                rect: Rect::new_unwrap(
+                rect: Rect::new(
                         x_palette + (toolbar_scale * (TOOLBAR_PAINT_WIDTH + 2 + paint_spacing * 1)) as i32,
                         y,
                         toolbar_scale * TOOLBAR_PAINT_WIDTH,
@@ -335,7 +335,7 @@ impl<'a> Gui<'a> {
         let colour_dark_grey = Color::RGB(0x58, 0x58, 0x58);
         let colour_rose = Color::RGB(0xC2, 0xBC, 0xBC);
 
-        let toolbar_rect = Rect::new_unwrap(
+        let toolbar_rect = Rect::new(
                 0,
                 (screen_h - toolbar_scale * (TOOLBAR_BUTTON_HEIGHT + 6)) as i32,
                 screen_w,
@@ -502,7 +502,7 @@ impl<'a> Gui<'a> {
                     Tile::CrossedOut => Res::TileCrossedOut
                 };
 
-                let rect = Rect::new_unwrap(
+                let rect = Rect::new(
                         state.offset_x + (x_spacing * x) as i32,
                         state.offset_y + (y_spacing * y) as i32,
                         state.board_scale * TILE_WIDTH,
@@ -521,7 +521,7 @@ impl<'a> Gui<'a> {
         let board_x_spacing = TILE_WIDTH + 2;
         let board_y_spacing = TILE_HEIGHT + 2;
 
-        let line = Rect::new_unwrap(
+        let line = Rect::new(
                 board_x + (scale as i32) * ((board_x_spacing * x1) as i32 - 2),
                 board_y + (scale as i32) * ((board_y_spacing * y1) as i32 - 2),
                 scale * (2 + board_x_spacing * (x2 - x1)),
