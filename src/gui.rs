@@ -11,8 +11,9 @@ use sdl2::mouse::Mouse;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::video::FullscreenType;
+
+#[cfg(feature = "png")]
 use sdl2_image;
-use sdl2_image::INIT_PNG;
 
 use action::PicrossAction;
 use board::Board;
@@ -103,7 +104,7 @@ impl<'a> Gui<'a> {
         let sdl = sdl2::init().unwrap();
         let video = sdl.video().unwrap();
 
-        let _ = sdl2_image::init(INIT_PNG);
+        init_png();
 
         let state = GuiState::new(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT);
         let screen_size = state.screen_size;
@@ -863,4 +864,15 @@ fn calc_rule_height(rule: &Rule) -> u32 {
     } else {
         0
     }
+}
+
+/*--------------------------------------------------------------*/
+
+#[cfg(not(feature = "png"))]
+fn init_png() {
+}
+
+#[cfg(feature = "png")]
+fn init_png() {
+    let _ = sdl2_image::init(sdl2_image::INIT_PNG);
 }

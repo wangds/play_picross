@@ -4,8 +4,16 @@ use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use sdl2::rect::Rect;
-use sdl2::render::Renderer;
-use sdl2::render::Texture;
+use sdl2::render::{Renderer,Texture};
+
+#[cfg(feature = "flic")]
+use flic;
+#[cfg(feature = "flic")]
+use sdl2::pixels::PixelFormatEnum;
+#[cfg(feature = "flic")]
+use sdl2::render::BlendMode;
+
+#[cfg(feature = "png")]
 use sdl2_image::LoadTexture;
 
 #[derive(Clone,Copy)]
@@ -54,7 +62,7 @@ pub struct GfxLib<'a> {
 impl<'a> GfxLib<'a> {
     pub fn new(renderer: Renderer<'a>) -> GfxLib<'a> {
         let texture = match GfxLib::load_texture(&renderer) {
-            None => panic!("Error loading sudoku.png"),
+            None => panic!("Error loading picross.flc or picross.png"),
             Some(t) => t
         };
 
@@ -107,21 +115,11 @@ impl<'a> GfxLib<'a> {
     }
 
     fn load_texture(renderer: &Renderer<'a>) -> Option<Texture> {
-        let bmp = Path::new("resource/picross.png");
-        if let Ok(t) = renderer.load_texture(bmp) {
+        if let Some(t) = try_load_flic(renderer) {
             return Some(t);
         }
-
-        match env::current_exe() {
-            Err(e) => println!("{}", e),
-
-            Ok(mut exe_path) => {
-                exe_path.set_file_name("picross.png");
-                match renderer.load_texture(exe_path.as_path()) {
-                    Err(e) => println!("{}", e),
-                    Ok(t) => return Some(t)
-                }
-            }
+        if let Some(t) = try_load_png(renderer) {
+            return Some(t);
         }
 
         None
@@ -181,4 +179,100 @@ fn count_digits(text: u32) -> u32 {
     }
 
     digits
+}
+
+/*--------------------------------------------------------------*/
+
+#[cfg(not(feature = "flic"))]
+fn try_load_flic(_: &Renderer) -> Option<Texture> {
+    None
+}
+
+#[cfg(feature = "flic")]
+fn try_load_flic(renderer: &Renderer) -> Option<Texture> {
+    let path = Path::new("resource/picross.flc");
+    if let Some(t) = try_load_flic2(renderer, &path) {
+        return Some(t);
+    }
+
+    if let Ok(mut path) = env::current_exe() {
+        path.set_file_name("picross.flc");
+        if let Some(t) = try_load_flic2(renderer, &path) {
+            return Some(t);
+        }
+    }
+
+    None
+}
+
+#[cfg(feature = "flic")]
+fn try_load_flic2(renderer: &Renderer, path: &Path) -> Option<Texture> {
+    if let Ok(mut f) = flic::FlicFile::open(path) {
+        let w = f.width() as usize;
+        let h = f.height() as usize;
+        let mut buf = vec![0; w * h];
+        let mut pal = [0; 3 * 256];
+
+        let res = f.read_next_frame(
+                &mut flic::RasterMut::new(w, h, &mut buf, &mut pal));
+        if res.is_err() {
+            return None;
+        }
+
+        let texture = renderer.create_texture_streaming(
+                PixelFormatEnum::ABGR8888, w as u32, h as u32);
+        if texture.is_err() {
+            return None;
+        }
+
+        let mut t = texture.unwrap();
+        render_to_texture(&mut t, w, h, &buf, &pal);
+        t.set_blend_mode(BlendMode::Blend);
+        return Some(t);
+    }
+
+    None
+}
+
+#[cfg(feature = "flic")]
+fn render_to_texture(
+        texture: &mut Texture,
+        w: usize, h: usize, buf: &[u8], pal: &[u8]) {
+    texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+        for y in 0..h {
+            for x in 0..w {
+                let offset = pitch * y + 4 * x;
+                let c = buf[w * y + x] as usize;
+
+                buffer[offset + 0] = pal[3 * c + 0];
+                buffer[offset + 1] = pal[3 * c + 1];
+                buffer[offset + 2] = pal[3 * c + 2];
+                buffer[offset + 3] = if c == 0 { 0 } else { 255 };
+            }
+        }
+    }).unwrap();
+}
+
+/*--------------------------------------------------------------*/
+
+#[cfg(not(feature = "png"))]
+fn try_load_png(_: &Renderer) -> Option<Texture> {
+    None
+}
+
+#[cfg(feature = "png")]
+fn try_load_png(renderer: &Renderer) -> Option<Texture> {
+    let path = Path::new("resource/picross.png");
+    if let Ok(t) = renderer.load_texture(&path) {
+        return Some(t);
+    }
+
+    if let Ok(mut path) = env::current_exe() {
+        path.set_file_name("picross.png");
+        if let Ok(t) = renderer.load_texture(&path) {
+            return Some(t);
+        }
+    }
+
+    None
 }

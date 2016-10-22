@@ -1,6 +1,11 @@
 // main.rs
 
 extern crate sdl2;
+
+#[cfg(feature = "flic")]
+extern crate flic;
+
+#[cfg(feature = "png")]
 extern crate sdl2_image;
 
 mod action;
