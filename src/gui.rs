@@ -5,9 +5,9 @@ use sdl2;
 use sdl2::EventPump;
 use sdl2::TimerSubsystem;
 use sdl2::event::Event;
-use sdl2::event::WindowEventId;
+use sdl2::event::WindowEvent;
 use sdl2::keyboard::Keycode;
-use sdl2::mouse::Mouse;
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::video::FullscreenType;
@@ -236,7 +236,7 @@ impl<'a> Gui<'a> {
                 Event::Quit {..} =>
                     return PicrossAction::Quit,
 
-                Event::Window { win_event_id: WindowEventId::Resized, data1, data2, .. } =>
+                Event::Window { win_event: WindowEvent::Resized(data1, data2), .. } =>
                     self.resize = Some((data1 as u32, data2 as u32)),
 
                 Event::KeyDown { keycode: Some(Keycode::F), .. }
@@ -251,38 +251,38 @@ impl<'a> Gui<'a> {
                 Event::MouseMotion { x, y, .. } =>
                     return self.state.on_mouse_motion(board, x, y),
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Left, x, y, .. } => {
+                Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
                     let w = Gui::find_widget(&self.widgets, x, y);
                     if y < toolbar_y || w.is_some() {
                         return self.state.on_lmb(board, w, x, y)
                     }
                 },
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Right, x, y, .. } =>
+                Event::MouseButtonDown { mouse_btn: MouseButton::Right, x, y, .. } =>
                     if y < toolbar_y {
                         return self.state.on_rmb(board, x, y)
                     },
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Middle, x, y, .. } =>
+                Event::MouseButtonDown { mouse_btn: MouseButton::Middle, x, y, .. } =>
                     return self.state.on_mmb(x, y),
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Unknown(8), .. } =>
+                Event::MouseButtonDown { mouse_btn: MouseButton::X1, .. } =>
                     if self.state.mode == GuiMode::Neutral {
                         return PicrossAction::Undo
                     },
 
-                Event::MouseButtonDown { mouse_btn: Mouse::Unknown(9), .. } =>
+                Event::MouseButtonDown { mouse_btn: MouseButton::X2, .. } =>
                     if self.state.mode == GuiMode::Neutral {
                         return PicrossAction::Redo
                     },
 
-                Event::MouseButtonUp { mouse_btn: Mouse::Left, .. } =>
+                Event::MouseButtonUp { mouse_btn: MouseButton::Left, .. } =>
                     return self.state.on_lmb_up(),
 
-                Event::MouseButtonUp { mouse_btn: Mouse::Right, .. } =>
+                Event::MouseButtonUp { mouse_btn: MouseButton::Right, .. } =>
                     return self.state.on_rmb_up(),
 
-                Event::MouseButtonUp { mouse_btn: Mouse::Middle, .. } =>
+                Event::MouseButtonUp { mouse_btn: MouseButton::Middle, .. } =>
                     return self.state.on_mmb_up(),
 
                 Event::MouseWheel { y, .. } =>
