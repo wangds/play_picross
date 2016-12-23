@@ -113,7 +113,7 @@ impl Puzzle {
 
 fn read_file(filename: &String) -> Result<PuzzleReaderResult, PuzzleReaderError> {
     let path = Path::new(filename);
-    let file = try!(File::open(path));
+    let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut dim: Option<(usize,usize)> = None;
     let mut row_rules = Vec::new();
@@ -160,8 +160,8 @@ fn read_file(filename: &String) -> Result<PuzzleReaderResult, PuzzleReaderError>
 
             // Add some context.
             let rules =
-                try!(read_rules(&ln, max_value, max_elements).map_err(|e|
-                        PuzzleReaderError::ParseError(ln.clone(), Box::new(e))));
+                read_rules(&ln, max_value, max_elements).map_err(|e|
+                        PuzzleReaderError::ParseError(ln.clone(), Box::new(e)))?;
 
             if !rules.is_empty() {
                 if row_rules.len() < height {
@@ -194,7 +194,7 @@ fn read_rules(ln: &String, max_value: usize, max_elements: usize)
     let mut sum = 0;
 
     for maybe_v in maybe_vs.iter() {
-        let v = try!(maybe_v.parse::<u32>());
+        let v = maybe_v.parse::<u32>()?;
         rules.push(v);
         sum = sum + v;
     }
