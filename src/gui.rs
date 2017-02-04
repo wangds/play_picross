@@ -12,9 +12,6 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::video::FullscreenType;
 
-#[cfg(feature = "png")]
-use sdl2_image;
-
 use action::PicrossAction;
 use board::Board;
 use board::Tile;
@@ -874,5 +871,5 @@ fn init_png() {
 
 #[cfg(feature = "png")]
 fn init_png() {
-    let _ = sdl2_image::init(sdl2_image::INIT_PNG);
+    sdl2::image::init(sdl2::image::INIT_PNG).unwrap();
 }

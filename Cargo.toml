@@ -5,12 +5,8 @@ authors = ["David Wang <millimillenary@gmail.com>"]
 
 [features]
 default = ["flic"]
-png = ["sdl2_image"]
+png = ["sdl2/image"]
 
 [dependencies]
 sdl2 = "*"
 flic = { version = "*", optional = true }
-
-[dependencies.sdl2_image]
-git = "https://github.com/xsleonard/rust-sdl2_image"
-optional = true

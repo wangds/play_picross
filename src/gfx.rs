@@ -14,7 +14,7 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::BlendMode;
 
 #[cfg(feature = "png")]
-use sdl2_image::LoadTexture;
+use sdl2::image::LoadTexture;
 
 #[derive(Clone,Copy)]
 pub enum Font {
